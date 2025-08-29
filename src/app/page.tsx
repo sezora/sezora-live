@@ -1,103 +1,261 @@
-import Image from "next/image";
+'use client'
 
-export default function Home() {
+import { useState, useEffect } from 'react'
+import { supabase } from '@/lib/supabase'
+import { useRouter } from 'next/navigation'
+
+export default function AuthPage() {
+  const [activeTab, setActiveTab] = useState('signup')
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+  const router = useRouter()
+
+  // Form state
+  const [signUpData, setSignUpData] = useState({
+    name: '',
+    email: '',
+    password: '',
+    role: 'Student'
+  })
+
+  const [signInData, setSignInData] = useState({
+    email: '',
+    password: ''
+  })
+
+  // Check if user is already logged in
+  useEffect(() => {
+    const checkUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session) {
+        // Check if admin
+        if (session.user.email === 'admin@app.com') {
+          router.push('/admin')
+        } else {
+          router.push('/dashboard')
+        }
+      }
+    }
+    checkUser()
+  }, [router])
+
+  const handleSignUp = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsLoading(true)
+    setError('')
+    setSuccess('')
+
+    try {
+      // Sign up user with Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: signUpData.email,
+        password: signUpData.password,
+        options: {
+          data: {
+            name: signUpData.name,
+            role: signUpData.role
+          }
+        }
+      })
+
+      if (authError) throw authError
+
+      if (authData.user) {
+        // Insert user data into custom users table
+        const { error: insertError } = await supabase
+          .from('users')
+          .insert({
+            id: authData.user.id,
+            name: signUpData.name,
+            email: signUpData.email,
+            role: signUpData.role
+          })
+
+        if (insertError) throw insertError
+
+        setSuccess('Account created successfully! Please check your email to verify your account.')
+        
+        // Clear form
+        setSignUpData({ name: '', email: '', password: '', role: 'Student' })
+      }
+    } catch (err: any) {
+      setError(err.message || 'An error occurred during sign up')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleSignIn = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsLoading(true)
+    setError('')
+    setSuccess('')
+
+    try {
+      // Check for admin credentials
+      if (signInData.email === 'admin@app.com' && signInData.password === 'admin123') {
+        // Create admin session
+        const { error } = await supabase.auth.signInWithPassword({
+          email: signInData.email,
+          password: signInData.password
+        })
+
+        if (error) {
+          // If admin doesn't exist in Supabase Auth, create them
+          if (error.message.includes('Invalid login credentials')) {
+            const { error: signUpError } = await supabase.auth.signUp({
+              email: 'admin@app.com',
+              password: 'admin123',
+              options: {
+                data: {
+                  name: 'Admin',
+                  role: 'Admin'
+                }
+              }
+            })
+
+            if (!signUpError) {
+              // Try signing in again
+              const { error: retryError } = await supabase.auth.signInWithPassword({
+                email: signInData.email,
+                password: signInData.password
+              })
+              
+              if (!retryError) {
+                router.push('/admin')
+                return
+              }
+            }
+          }
+          throw error
+        } else {
+          router.push('/admin')
+          return
+        }
+      }
+
+      // Regular user sign in
+      const { error } = await supabase.auth.signInWithPassword({
+        email: signInData.email,
+        password: signInData.password
+      })
+
+      if (error) throw error
+
+      // Redirect to dashboard
+      router.push('/dashboard')
+
+    } catch (err: any) {
+      setError(err.message || 'An error occurred during sign in')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const switchTab = (tab: 'signup' | 'signin') => {
+    setActiveTab(tab)
+    setError('')
+    setSuccess('')
+  }
+
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+    <div className="container">
+      <div className="form-container">
+        <div className="form-tabs">
+          <button 
+            className={`tab-button ${activeTab === 'signup' ? 'active' : ''}`}
+            onClick={() => switchTab('signup')}
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+            Sign Up
+          </button>
+          <button 
+            className={`tab-button ${activeTab === 'signin' ? 'active' : ''}`}
+            onClick={() => switchTab('signin')}
           >
-            Read our docs
-          </a>
+            Sign In
+          </button>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+
+        {error && <div className="error">{error}</div>}
+        {success && <div className="success">{success}</div>}
+
+        {/* Sign Up Form */}
+        <form 
+          className={`auth-form ${activeTab === 'signup' ? 'active' : ''}`}
+          onSubmit={handleSignUp}
         >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
+          <h2>Create Account</h2>
+          <input
+            type="text"
+            placeholder="Full Name"
+            value={signUpData.name}
+            onChange={(e) => setSignUpData({ ...signUpData, name: e.target.value })}
+            required
           />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+          <input
+            type="email"
+            placeholder="Email"
+            value={signUpData.email}
+            onChange={(e) => setSignUpData({ ...signUpData, email: e.target.value })}
+            required
+          />
+          <input
+            type="password"
+            placeholder="Password"
+            value={signUpData.password}
+            onChange={(e) => setSignUpData({ ...signUpData, password: e.target.value })}
+            required
+          />
+          
+          <div className="role-selector">
+            <label>I am a:</label>
+            <div className="toggle-container">
+              <div 
+                className={`toggle-option ${signUpData.role === 'Student' ? 'active' : ''}`}
+                onClick={() => setSignUpData({ ...signUpData, role: 'Student' })}
+              >
+                Student
+              </div>
+              <div 
+                className={`toggle-option ${signUpData.role === 'Employer' ? 'active' : ''}`}
+                onClick={() => setSignUpData({ ...signUpData, role: 'Employer' })}
+              >
+                Employer
+              </div>
+            </div>
+          </div>
+          
+          <button type="submit" disabled={isLoading}>
+            {isLoading ? 'Creating Account...' : 'Sign Up'}
+          </button>
+        </form>
+
+        {/* Sign In Form */}
+        <form 
+          className={`auth-form ${activeTab === 'signin' ? 'active' : ''}`}
+          onSubmit={handleSignIn}
         >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
+          <h2>Sign In</h2>
+          <input
+            type="email"
+            placeholder="Email"
+            value={signInData.email}
+            onChange={(e) => setSignInData({ ...signInData, email: e.target.value })}
+            required
           />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
+          <input
+            type="password"
+            placeholder="Password"
+            value={signInData.password}
+            onChange={(e) => setSignInData({ ...signInData, password: e.target.value })}
+            required
           />
-          Go to nextjs.org →
-        </a>
-      </footer>
+          <button type="submit" disabled={isLoading}>
+            {isLoading ? 'Signing In...' : 'Sign In'}
+          </button>
+        </form>
+      </div>
     </div>
-  );
+  )
 }
