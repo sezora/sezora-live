@@ -79,8 +79,8 @@ export default function AuthPage() {
         // Clear form
         setSignUpData({ name: '', email: '', password: '', role: 'Student' })
       }
-    } catch (err: any) {
-      setError(err.message || 'An error occurred during sign up')
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'An error occurred during sign up')
     } finally {
       setIsLoading(false)
     }
@@ -146,8 +146,8 @@ export default function AuthPage() {
       // Redirect to dashboard
       router.push('/dashboard')
 
-    } catch (err: any) {
-      setError(err.message || 'An error occurred during sign in')
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'An error occurred during sign in')
     } finally {
       setIsLoading(false)
     }
