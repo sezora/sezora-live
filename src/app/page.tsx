@@ -3,12 +3,16 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import { validatePassword, validateEmail, sanitizeInput } from '@/lib/auth'
+import PasswordReset from '@/components/PasswordReset'
+import PasswordStrength from '@/components/PasswordStrength'
 
 export default function AuthPage() {
   const [activeTab, setActiveTab] = useState('signup')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [showPasswordReset, setShowPasswordReset] = useState(false)
   const router = useRouter()
 
   // Form state
@@ -29,8 +33,9 @@ export default function AuthPage() {
     const checkUser = async () => {
       const { data: { session } } = await supabase.auth.getSession()
       if (session) {
-        // Check if admin
-        if (session.user.email === 'admin@app.com') {
+        // Check if admin  
+        const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL || 'admin@app.com'
+        if (session.user.email === adminEmail) {
           router.push('/admin')
         } else {
           router.push('/dashboard')
@@ -47,13 +52,37 @@ export default function AuthPage() {
     setSuccess('')
 
     try {
+      // Validate all inputs
+      if (!signUpData.name.trim() || !signUpData.email.trim() || !signUpData.password || !signUpData.role) {
+        throw new Error('Please fill in all fields')
+      }
+
+      // Validate email format
+      if (!validateEmail(signUpData.email)) {
+        throw new Error('Please enter a valid email address')
+      }
+
+      // Validate password strength
+      const passwordValidation = validatePassword(signUpData.password)
+      if (!passwordValidation.valid) {
+        throw new Error(passwordValidation.errors[0])
+      }
+
+      // Sanitize inputs
+      const sanitizedName = sanitizeInput(signUpData.name)
+      const sanitizedEmail = signUpData.email.trim().toLowerCase()
+
+      if (sanitizedName.length < 2) {
+        throw new Error('Name must be at least 2 characters long')
+      }
+
       // Sign up user with Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: signUpData.email,
+        email: sanitizedEmail,
         password: signUpData.password,
         options: {
           data: {
-            name: signUpData.name,
+            name: sanitizedName,
             role: signUpData.role
           }
         }
@@ -67,8 +96,8 @@ export default function AuthPage() {
           .from('users')
           .insert({
             id: authData.user.id,
-            name: signUpData.name,
-            email: signUpData.email,
+            name: sanitizedName,
+            email: sanitizedEmail,
             role: signUpData.role
           })
 
@@ -93,58 +122,29 @@ export default function AuthPage() {
     setSuccess('')
 
     try {
-      // Check for admin credentials
-      if (signInData.email === 'admin@app.com' && signInData.password === 'admin123') {
-        // Create admin session
-        const { error } = await supabase.auth.signInWithPassword({
-          email: signInData.email,
-          password: signInData.password
-        })
-
-        if (error) {
-          // If admin doesn't exist in Supabase Auth, create them
-          if (error.message.includes('Invalid login credentials')) {
-            const { error: signUpError } = await supabase.auth.signUp({
-              email: 'admin@app.com',
-              password: 'admin123',
-              options: {
-                data: {
-                  name: 'Admin',
-                  role: 'Admin'
-                }
-              }
-            })
-
-            if (!signUpError) {
-              // Try signing in again
-              const { error: retryError } = await supabase.auth.signInWithPassword({
-                email: signInData.email,
-                password: signInData.password
-              })
-              
-              if (!retryError) {
-                router.push('/admin')
-                return
-              }
-            }
-          }
-          throw error
-        } else {
-          router.push('/admin')
-          return
-        }
+      // Validate input
+      if (!signInData.email || !signInData.password) {
+        throw new Error('Please fill in all fields')
       }
 
-      // Regular user sign in
-      const { error } = await supabase.auth.signInWithPassword({
-        email: signInData.email,
+      // Sign in with Supabase
+      const { data: authData, error } = await supabase.auth.signInWithPassword({
+        email: signInData.email.trim(),
         password: signInData.password
       })
 
       if (error) throw error
 
-      // Redirect to dashboard
-      router.push('/dashboard')
+      if (authData.user) {
+        // Check if user is admin (using environment variable or fallback)  
+        const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL || 'admin@app.com'
+        
+        if (authData.user.email === adminEmail) {
+          router.push('/admin')
+        } else {
+          router.push('/dashboard')
+        }
+      }
 
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'An error occurred during sign in')
@@ -207,6 +207,10 @@ export default function AuthPage() {
             onChange={(e) => setSignUpData({ ...signUpData, password: e.target.value })}
             required
           />
+          <PasswordStrength 
+            password={signUpData.password} 
+            show={signUpData.password.length > 0} 
+          />
           
           <div className="role-selector">
             <label>I am a:</label>
@@ -254,8 +258,30 @@ export default function AuthPage() {
           <button type="submit" disabled={isLoading}>
             {isLoading ? 'Signing In...' : 'Sign In'}
           </button>
+          
+          <div style={{ textAlign: 'center', marginTop: '15px' }}>
+            <button 
+              type="button" 
+              onClick={() => setShowPasswordReset(true)}
+              style={{ 
+                background: 'none', 
+                border: 'none', 
+                color: '#66d9a3', 
+                textDecoration: 'underline',
+                cursor: 'pointer',
+                fontSize: '14px'
+              }}
+            >
+              Forgot your password?
+            </button>
+          </div>
         </form>
       </div>
+      
+      {/* Password Reset Modal */}
+      {showPasswordReset && (
+        <PasswordReset onClose={() => setShowPasswordReset(false)} />
+      )}
     </div>
   )
 }

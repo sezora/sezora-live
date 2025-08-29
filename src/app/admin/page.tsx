@@ -23,7 +23,8 @@ export default function AdminDashboard() {
         }
 
         // Check if user is admin
-        if (session.user.email !== 'admin@app.com') {
+        const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL || 'admin@app.com'
+        if (session.user.email !== adminEmail) {
           router.push('/dashboard')
           return
         }

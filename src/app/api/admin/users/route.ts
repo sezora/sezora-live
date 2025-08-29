@@ -1,26 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import { rateLimit, requireAdmin } from '@/lib/middleware'
 
 // GET /api/admin/users - Get all users (admin only)
 export async function GET(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('authorization')
-    if (!authHeader) {
-      return NextResponse.json({ error: 'Authorization required' }, { status: 401 })
-    }
+    // Apply rate limiting
+    const rateLimitResponse = rateLimit(20, 60000)(request) // 20 requests per minute
+    if (rateLimitResponse) return rateLimitResponse
 
-    // Verify admin access (this is a simplified check)
-    const token = authHeader.replace('Bearer ', '')
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token)
-
-    if (authError || !user || user.email !== 'admin@app.com') {
-      return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
-    }
+    // Require admin authentication
+    const authResult = await requireAdmin(request)
+    if (authResult instanceof NextResponse) return authResult
 
     // Get all users
     const { data: users, error } = await supabase
       .from('users')
-      .select('*')
+      .select('id, name, email, role, created_at')
       .order('created_at', { ascending: false })
 
     if (error) throw error
@@ -38,10 +34,13 @@ export async function GET(request: NextRequest) {
 // DELETE /api/admin/users/[id] - Delete a user (admin only)
 export async function DELETE(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('authorization')
-    if (!authHeader) {
-      return NextResponse.json({ error: 'Authorization required' }, { status: 401 })
-    }
+    // Apply rate limiting
+    const rateLimitResponse = rateLimit(10, 60000)(request) // 10 deletes per minute
+    if (rateLimitResponse) return rateLimitResponse
+
+    // Require admin authentication
+    const authResult = await requireAdmin(request)
+    if (authResult instanceof NextResponse) return authResult
 
     const url = new URL(request.url)
     const userId = url.searchParams.get('id')
@@ -50,12 +49,10 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'User ID required' }, { status: 400 })
     }
 
-    // Verify admin access
-    const token = authHeader.replace('Bearer ', '')
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token)
-
-    if (authError || !user || user.email !== 'admin@app.com') {
-      return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
+    // Validate UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+    if (!uuidRegex.test(userId)) {
+      return NextResponse.json({ error: 'Invalid user ID format' }, { status: 400 })
     }
 
     // Delete user from custom table (auth user will be handled by RLS)

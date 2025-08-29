@@ -850,6 +850,108 @@ body {
     }
 }
 
+/* Password Strength Indicator */
+.password-strength {
+    margin-top: 8px;
+    font-size: 13px;
+}
+
+.strength-indicator {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.strength-bar {
+    flex: 1;
+    height: 4px;
+    background: #e1e5e9;
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.strength-fill {
+    height: 100%;
+    transition: width 0.3s ease, background-color 0.3s ease;
+    border-radius: 2px;
+}
+
+.strength-very-weak .strength-fill { background: #ff4757; }
+.strength-weak .strength-fill { background: #ff6b4a; }
+.strength-fair .strength-fill { background: #ffa502; }
+.strength-good .strength-fill { background: #2ed573; }
+.strength-strong .strength-fill { background: #1e90ff; }
+
+.strength-label {
+    min-width: 60px;
+    font-weight: 500;
+    font-size: 12px;
+}
+
+.strength-very-weak .strength-label { color: #ff4757; }
+.strength-weak .strength-label { color: #ff6b4a; }
+.strength-fair .strength-label { color: #ffa502; }
+.strength-good .strength-label { color: #2ed573; }
+.strength-strong .strength-label { color: #1e90ff; }
+
+.strength-requirements {
+    background: #f8f9fa;
+    border: 1px solid #e1e5e9;
+    border-radius: 6px;
+    padding: 12px;
+    margin-top: 8px;
+}
+
+.strength-requirements p {
+    margin: 0 0 8px 0;
+    font-weight: 500;
+    color: #666;
+    font-size: 12px;
+}
+
+.strength-requirements ul {
+    margin: 0;
+    padding-left: 16px;
+    list-style: none;
+}
+
+.requirement-item {
+    color: #e74c3c;
+    font-size: 11px;
+    margin-bottom: 4px;
+    position: relative;
+}
+
+.requirement-item:before {
+    content: '✗';
+    position: absolute;
+    left: -16px;
+    color: #e74c3c;
+}
+
+/* Loading States */
+.loading-spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #66d9a3;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-right: 8px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.form-loading {
+    opacity: 0.7;
+    pointer-events: none;
+}
+
 /* Responsive Design for Job Board and Modal */
 @media (max-width: 768px) {
     .job-board-header {
@@ -879,5 +981,13 @@ body {
     
     .job-board-header h2 {
         font-size: 20px;
+    }
+    
+    .password-strength {
+        font-size: 12px;
+    }
+    
+    .strength-requirements {
+        padding: 8px;
     }
 }
