@@ -6,6 +6,8 @@ const nextConfig: NextConfig = {
     // your project has ESLint errors.
     ignoreDuringBuilds: true,
   },
+  // Fix potential routing issues
+  trailingSlash: false,
 };
 
 export default nextConfig;
